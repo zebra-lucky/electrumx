@@ -538,8 +538,8 @@ class SessionManager(object):
         electrum_header, _ = await self._electrum_and_raw_headers(height)
         return electrum_header
 
-    async def broadcast_transaction(self, raw_tx):
-        hex_hash = await self.daemon.broadcast_transaction(raw_tx)
+    async def broadcast_transaction(self, raw_tx, *args):
+        hex_hash = await self.daemon.broadcast_transaction(raw_tx, *args)
         self.txs_sent += 1
         return hex_hash
 
@@ -1302,6 +1302,8 @@ class DashElectrumX(ElectrumX):
     def set_request_handlers(self, ptuple):
         super().set_request_handlers(ptuple)
         self.request_handlers.update({
+            'blockchain.transaction.broadcast.dash':
+            self.transaction_broadcast,
             'masternode.announce.broadcast':
             self.masternode_announce_broadcast,
             'masternode.subscribe': self.masternode_subscribe,
@@ -1335,7 +1337,27 @@ class DashElectrumX(ElectrumX):
                                              [{'values': s_values,
                                               'active': s_active}])
 
-    # Masternode command handlers
+    async def transaction_broadcast(self, raw_tx, use_is=False):
+        '''Broadcast a raw transaction to the network.
+
+        raw_tx: the raw transaction as a hexadecimal string
+        use_is: use InstantSend payment method'''
+        # This returns errors as JSON RPC errors, as is natural
+        is_msg = ' InstantSend' if use_is else ''
+        try:
+            hex_hash = await self.session_mgr\
+                .broadcast_transaction(raw_tx, False, use_is)
+            self.txs_sent += 1
+            self.logger.info(f'sent{is_msg} tx: {hex_hash}')
+            return hex_hash
+        except DaemonError as e:
+            error, = e.args
+            message = error['message']
+            self.logger.info(f'error sending{is_msg} transaction: {message}')
+            raise RPCError(BAD_REQUEST, f'the{is_msg} transaction was rejected'
+                                        f' by network rules.\n\n{message}\n'
+                                        f'[{raw_tx}]')
+
     async def masternode_announce_broadcast(self, signmnb):
         '''Pass through the masternode announce message to be broadcast
         by the daemon.
