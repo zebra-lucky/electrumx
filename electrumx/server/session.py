@@ -1297,6 +1297,7 @@ class DashElectrumX(ElectrumX):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.mns = set()
+        self.sporks = {'values': tuple(), 'active': tuple()}
 
     def set_request_handlers(self, ptuple):
         super().set_request_handlers(ptuple)
@@ -1304,7 +1305,8 @@ class DashElectrumX(ElectrumX):
             'masternode.announce.broadcast':
             self.masternode_announce_broadcast,
             'masternode.subscribe': self.masternode_subscribe,
-            'masternode.list': self.masternode_list
+            'masternode.list': self.masternode_list,
+            'network.sporks.subscribe': self.sporks_subscribe,
         })
 
     async def notify(self, touched, height_changed):
@@ -1315,6 +1317,23 @@ class DashElectrumX(ElectrumX):
                                                ['status', mn])
             await self.send_notification('masternode.subscribe',
                                          [mn, status.get(mn)])
+
+        s_values = await self.daemon_request('spork', ['show'])
+        s_active = await self.daemon_request('spork', ['active'])
+        if s_values is not None and s_active is not None:
+            s_changed = False
+            new_s_val = tuple(sorted(s_values.items()))
+            new_s_act = tuple(sorted(s_active.items()))
+            if new_s_val != self.sporks['values']:
+                self.sporks['values'] = new_s_val
+                s_changed = True
+            if new_s_act != self.sporks['active']:
+                self.sporks['active'] = new_s_act
+                s_changed = True
+            if s_changed:
+                await self.send_notification('newtork.sporks.subscribe',
+                                             [{'values': s_values,
+                                              'active': s_active}])
 
     # Masternode command handlers
     async def masternode_announce_broadcast(self, signmnb):
@@ -1436,3 +1455,13 @@ class DashElectrumX(ElectrumX):
             return [mn for mn in cache if mn['payee'] in payees]
         else:
             return cache
+
+    async def sporks_subscribe(self):
+        '''Returns the status of network sporks.'''
+        s_values = await self.daemon_request('spork', ['show'])
+        s_active = await self.daemon_request('spork', ['active'])
+        if s_values is not None and s_active is not None:
+            self.sporks['values'] = tuple(sorted(s_values.items()))
+            self.sporks['active'] = tuple(sorted(s_active.items()))
+            return {'values': s_values, 'active': s_active}
+        return None
