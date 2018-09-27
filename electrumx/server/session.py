@@ -1302,14 +1302,18 @@ class DashElectrumX(ElectrumX):
     def set_request_handlers(self, ptuple):
         super().set_request_handlers(ptuple)
         self.request_handlers.update({
-            'blockchain.transaction.broadcast.dash':
-            self.transaction_broadcast,
             'masternode.announce.broadcast':
             self.masternode_announce_broadcast,
             'masternode.subscribe': self.masternode_subscribe,
-            'masternode.list': self.masternode_list,
-            'network.sporks.subscribe': self.sporks_subscribe,
+            'masternode.list': self.masternode_list
         })
+
+        if ptuple >= (1, 5):
+            self.request_handlers.update({
+                'dash.blockchain.transaction.broadcast':
+                self.dash_transaction_broadcast,
+                'dash.network.sporks.subscribe': self.sporks_subscribe,
+            })
 
     async def notify(self, touched, height_changed):
         '''Notify the client about changes in masternode list.'''
@@ -1337,7 +1341,7 @@ class DashElectrumX(ElectrumX):
                                              [{'values': s_values,
                                               'active': s_active}])
 
-    async def transaction_broadcast(self, raw_tx, use_is=False):
+    async def dash_transaction_broadcast(self, raw_tx, use_is=False):
         '''Broadcast a raw transaction to the network.
 
         raw_tx: the raw transaction as a hexadecimal string
