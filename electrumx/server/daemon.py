@@ -246,6 +246,10 @@ class Daemon(object):
         network_info = await self.getnetworkinfo()
         return network_info['relayfee']
 
+    async def mempool_entry(self, tx_hash):
+        '''Returns mempool data for given tx_hash.'''
+        return await self._send_single('getmempoolentry', (tx_hash, ))
+
     async def getrawtransaction(self, hex_hash, verbose=False):
         '''Return the serialized raw transaction with the given hash.'''
         # Cast to int because some coin daemons are old and require it

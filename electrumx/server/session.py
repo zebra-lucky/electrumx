@@ -702,7 +702,7 @@ class ElectrumX(SessionBase):
     '''A TCP server that handles incoming Electrum connections.'''
 
     PROTOCOL_MIN = (1, 1)
-    PROTOCOL_MAX = (1, 4)
+    PROTOCOL_MAX = (1, 2, 1)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1146,6 +1146,11 @@ class ElectrumX(SessionBase):
             raise RPCError(BAD_REQUEST, 'the transaction was rejected by '
                            f'network rules.\n\n{message}\n[{raw_tx}]')
 
+    async def mempool_entry(self, tx_hash):
+        '''Returns mempool data for given tx_hash.'''
+        assert_tx_hash(tx_hash)
+        return await self.daemon_request('mempool_entry', tx_hash)
+
     async def transaction_get(self, tx_hash, verbose=False):
         '''Return the serialized raw transaction given its hash
 
@@ -1251,6 +1256,7 @@ class ElectrumX(SessionBase):
                 self.mempool.compact_fee_histogram,
                 'blockchain.block.headers': self.block_headers_12,
                 'server.ping': self.ping,
+                'blockchain.get_mempoolentry': self.mempool_entry,
             })
 
         if ptuple >= (1, 4):
@@ -1308,7 +1314,7 @@ class DashElectrumX(ElectrumX):
             'masternode.list': self.masternode_list
         })
 
-        if ptuple >= (1, 5):
+        if ptuple >= (1, 2):
             self.request_handlers.update({
                 'dash.blockchain.transaction.broadcast':
                 self.dash_transaction_broadcast,
